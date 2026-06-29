@@ -150,6 +150,23 @@ export const KanbanBoard = () => {
 
   return (
     <div className="flex flex-col gap-6">
+      <style>{`
+        @keyframes heartFill {
+          0% {
+            clip-path: inset(100% 0 0 0);
+          }
+          50% {
+            clip-path: inset(0 0 0 0);
+          }
+          100% {
+            clip-path: inset(100% 0 0 0);
+          }
+        }
+        .animate-heart-fill {
+          animation: heartFill 1.8s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* Cards Stat Section */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-zinc-850 p-4.5 rounded-2xl flex items-center justify-between shadow-sm">
@@ -240,10 +257,10 @@ export const KanbanBoard = () => {
                 </div>
               </div>
 
-              <div className={`flex-grow overflow-y-auto pr-1 flex flex-col gap-3 custom-scrollbar transition-all duration-350 ease-in-out ${
+              <div className={`flex-grow min-h-0 overflow-y-auto pr-1 flex flex-col gap-3 custom-scrollbar transition-all duration-350 ease-in-out ${
                 isMobileExpanded 
-                  ? 'max-h-[60vh] opacity-100 p-4 md:p-0 md:max-h-none' 
-                  : 'max-h-0 opacity-0 md:max-h-none md:opacity-100 pointer-events-none md:pointer-events-auto'
+                  ? 'max-h-[60vh] opacity-100 p-4 md:p-0 md:max-h-none md:min-h-0' 
+                  : 'max-h-0 opacity-0 md:max-h-none md:opacity-100 md:min-h-0 pointer-events-none md:pointer-events-auto'
               }`}>
                 {query.isLoading ? (
                   <div className="py-8 md:flex-grow flex items-center justify-center text-xs text-zinc-400">
@@ -397,12 +414,19 @@ export const KanbanBoard = () => {
                 <ColumnSentinel 
                   onIntersect={query.fetchNextPage} 
                   hasNextPage={query.hasNextPage} 
+                  isFetching={query.isFetchingNextPage}
                 />
                 
                 {query.isFetchingNextPage && (
-                  <div className="text-[10px] text-center text-zinc-400 py-1 flex items-center justify-center gap-1.5">
-                    <div className="w-3 h-3 border-2 border-brand-500 border-t-transparent animate-spin rounded-full" />
-                    Loading more...
+                  <div className="py-2.5 flex items-center justify-center">
+                    <div className="relative w-4.5 h-4.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5 text-rose-300 dark:text-rose-900/50 absolute inset-0">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                      </svg>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5 text-rose-500 absolute inset-0 animate-heart-fill">
+                        <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3c1.54 0 2.902.65 3.857 1.75C12.493 3.65 13.855 3 15.312 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                      </svg>
+                    </div>
                   </div>
                 )}
               </div>
@@ -445,22 +469,45 @@ export const KanbanBoard = () => {
   );
 };
 
-const ColumnSentinel = ({ onIntersect, hasNextPage }: { onIntersect: () => void; hasNextPage: boolean }) => {
+const ColumnSentinel = ({ 
+  onIntersect, 
+  hasNextPage, 
+  isFetching 
+}: { 
+  onIntersect: () => void; 
+  hasNextPage: boolean; 
+  isFetching: boolean; 
+}) => {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!hasNextPage) return;
+    if (!hasNextPage || isFetching) return;
+    
+    const scrollContainer = sentinelRef.current?.parentElement;
+    if (!scrollContainer) return;
+
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
         onIntersect();
       }
-    }, { threshold: 0.1 });
+    }, { 
+      root: scrollContainer, 
+      rootMargin: '0px 0px 100px 0px', 
+      threshold: 0 
+    });
 
-    if (sentinelRef.current) {
-      observer.observe(sentinelRef.current);
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) {
+      observer.observe(currentSentinel);
     }
-    return () => observer.disconnect();
-  }, [onIntersect, hasNextPage]);
+    
+    return () => {
+      if (currentSentinel) {
+        observer.unobserve(currentSentinel);
+      }
+      observer.disconnect();
+    };
+  }, [onIntersect, hasNextPage, isFetching]);
 
-  return <div ref={sentinelRef} className="h-4 w-full" />;
+  return <div ref={sentinelRef} className="h-2 w-full shrink-0" />;
 };
